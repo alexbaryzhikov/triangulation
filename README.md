@@ -1,1 +1,1 @@
-Divide and conquer algorithm for finding Delaunay triangulation of a random set of 2d points.
+Divide and conquer algorithm for finding Delaunay triangulation of a given set of 2d points.
