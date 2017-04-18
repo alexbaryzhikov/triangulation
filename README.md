@@ -1,1 +1,1 @@
-Divide and conquer algorithm for building Delaunay triangulation of a given set of 2d points.
+Divide and conquer algorithm for building Delaunay triangulation of a set of 2d points.
