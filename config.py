@@ -4,8 +4,8 @@ Config.
 
 """
 
-SCREEN_W        = 1200
-SCREEN_H        = 1200
+SCREEN_W        = 800
+SCREEN_H        = 800
 SCREEN_MODE     = 0
 # SCREEN_W      = 2560
 # SCREEN_H      = 1440
@@ -26,5 +26,4 @@ RND_POINTS      = 500
 
 GRID_CELLS      = 10
 
-RADIUS          = 500
 CRCL_POINTS     = 30
