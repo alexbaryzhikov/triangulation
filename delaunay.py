@@ -7,8 +7,7 @@ The divide-and-conquer algorithm for computing Delaunay triangulation of a set o
 import numpy as np
 import math
 
-edges = [] # module-wide container for edges
-
+edges = [] # container for edges
 
 # -----------------------------------------------------------------
 # Interface method, that is supposed to be exported.
@@ -17,12 +16,28 @@ edges = [] # module-wide container for edges
 def delaunay(S):
     """Assumes S is a list of points of form (x, y).
     Returns a list of edges that form a Delaunay triangulation of S."""
+
+    if len(S) < 2:
+        print("Must be at least two points.")
+        return
+    
     global edges
     edges = []
     if type(S) != np.ndarray:
         S = np.asarray(S)
-    S = p_remdup(p_sort(S))  # sort and remove duplicate points
+    else:
+        S = S.copy()
+    
+    # Sort points by x coordinate, y is a tiebreaker.
+    S.view(dtype=[('f0', S.dtype), ('f1', S.dtype)]).sort(order=['f0', 'f1'], axis=0)
+    
+    # Remove duplicates.
+    dupes = [i for i in range(1, len(S)) if S[i-1][0] == S[i][0] and S[i-1][1] == S[i][1]]
+    if dupes:
+        S = np.delete(S, dupes, 0)
+
     triangulate(S)
+    edges = [e for e in edges if e.data is None]  # clean the garbage
     return edges
 
 
@@ -39,37 +54,11 @@ class Edge:
         self.dest  = dest
         self.onext = None
         self.oprev = None
-        self.dnext = None
-        self.dprev = None
         self.sym   = None    # symmetrical counterpart of this edge
         self.data  = None    # can store anyting (e.g. tag), for external use
 
-    def set_org(self, p):
-        self.org = p
-        self.sym.dest = p
-
-    def set_dest(self, p):
-        self.dest = p
-        self.sym.org = p
-
-    def set_onext(self, e):
-        self.onext = e
-        self.sym.dnext = e.sym
-
-    def set_oprev(self, e):
-        self.oprev = e
-        self.sym.dprev = e.sym
-
-    def set_dnext(self, e):
-        self.dnext = e
-        self.sym.onext = e.sym
-
-    def set_dprev(self, e):
-        self.dprev = e
-        self.sym.oprev = e.sym
-
     def __str__(self):
-        s = '[' + str(self.org) + ', ' + str(self.dest) + ']'
+        s = str(self.org) + ', ' + str(self.dest)
         if self.data is None:
             return s
         else:
@@ -122,34 +111,34 @@ def triangulate(S):
             else:
                 break
 
-        # Create a first cross edge rbase from rdi.org to ldi.org.
-        rbase = connect(ldi.sym, rdi)
+        # Create a first cross edge base from rdi.org to ldi.org.
+        base = connect(ldi.sym, rdi)
 
         # Adjust ldo and rdo
-        if p_coinside(ldi.org, ldo.org):
-            ldo = rbase
-        if p_coinside(rdi.org, rdo.org):
-            rdo = rbase.sym
+        if ldi.org[0] == ldo.org[0] and ldi.org[1] == ldo.org[1]:
+            ldo = base
+        if rdi.org[0] == rdo.org[0] and rdi.org[1] == rdo.org[1]:
+            rdo = base.sym
 
         # Merge.
         while True:
             # Locate the first R and L points to be encountered by the diving bubble.
-            rcand, lcand = rbase.sym.onext, rbase.oprev
-            # If both lcand and rcand are invalid, then rbase is the lower common tangent.
-            v_rcand, v_lcand = right_of(rcand.dest, rbase), right_of(lcand.dest, rbase)
+            rcand, lcand = base.sym.onext, base.oprev
+            # If both lcand and rcand are invalid, then base is the lower common tangent.
+            v_rcand, v_lcand = right_of(rcand.dest, base), right_of(lcand.dest, base)
             if not (v_rcand or v_lcand):
                 break
-            # Delete R edges out of rbase.dest that fail the circle test.
+            # Delete R edges out of base.dest that fail the circle test.
             if v_rcand:
-                while right_of(rcand.onext.dest, rbase) and \
-                      in_circle(rbase.dest, rbase.org, rcand.dest, rcand.onext.dest) == 1:
+                while right_of(rcand.onext.dest, base) and \
+                      in_circle(base.dest, base.org, rcand.dest, rcand.onext.dest) == 1:
                     t = rcand.onext
                     delete_edge(rcand)
                     rcand = t
             # Symmetrically, delete L edges.
             if v_lcand:
-                while right_of(lcand.oprev.dest, rbase) and \
-                      in_circle(rbase.dest, rbase.org, lcand.dest, lcand.oprev.dest) == 1:
+                while right_of(lcand.oprev.dest, base) and \
+                      in_circle(base.dest, base.org, lcand.dest, lcand.oprev.dest) == 1:
                     t = lcand.oprev
                     delete_edge(lcand)
                     lcand = t
@@ -157,11 +146,11 @@ def triangulate(S):
             # If both are valid, then choose the appropriate one using the in_circle test.
             if not v_rcand or \
                (v_lcand and in_circle(rcand.dest, rcand.org, lcand.org, lcand.dest) == 1):
-                # Add cross edge rbase from rcand.dest to rbase.dest.
-                rbase = connect(lcand, rbase.sym)
+                # Add cross edge base from rcand.dest to base.dest.
+                base = connect(lcand, base.sym)
             else:
-                # Add cross edge rbase from rbase.org to lcand.dest
-                rbase = connect(rbase.sym, rcand.sym)
+                # Add cross edge base from base.org to lcand.dest
+                base = connect(base.sym, rcand.sym)
 
         return ldo, rdo
 
@@ -172,13 +161,11 @@ def triangulate(S):
 
 def in_circle(a, b, c, d):
     """Does d lie inside of circumcircle abc?"""
-    adx, ady = a[0]-d[0], a[1]-d[1]
-    bdx, bdy = b[0]-d[0], b[1]-d[1]
-    cdx, cdy = c[0]-d[0], c[1]-d[1]
-    det = np.linalg.det(
-        ((adx, ady, adx**2 + ady**2),
-         (bdx, bdy, bdx**2 + bdy**2),
-         (cdx, cdy, cdx**2 + cdy**2)))
+    a1, a2 = a[0]-d[0], a[1]-d[1]
+    b1, b2 = b[0]-d[0], b[1]-d[1]
+    c1, c2 = c[0]-d[0], c[1]-d[1]
+    a3, b3, c3 = a1**2 + a2**2, b1**2 + b2**2, c1**2 + c2**2
+    det = a1*b2*c3 + a2*b3*c1 + a3*b1*c2 - (a3*b2*c1 + a1*b3*c2 + a2*b1*c3)
     return det < 0
 
 
@@ -203,62 +190,33 @@ def left_of(p, e):
 def make_edge(org, dest):
     """Creates a new edge. Assumes org and dest are points."""
 
-    if p_coinside(org, dest):
-        print("Can't create zero length edge: {}, {}.".format(org, dest))
-        return None
-
-    if e_exists(org, dest):
-        print("Edge already exists: {}, {}.".format(org, dest))
-        return None
-
     global edges
     e  = Edge(org, dest)
     es = Edge(dest, org)
     e.sym, es.sym = es, e  # make edges mutually symmetrical
-    e.onext, e.oprev, e.dnext, e.dprev = e, e, e, e
-    es.onext, es.oprev, es.dnext, es.dprev = es, es, es, es
+    e.onext, e.oprev = e, e
+    es.onext, es.oprev = es, es
     edges.append(e)
     return e
 
 
 def splice(a, b):
-    """Combines distinct edge rings / breaks the same ring in two pieces. If the ring is broken,
-    the tearing will go between a and a.onext through a.org to between b and b.onext. It's not
-    a purely topological splice. It takes into account position of edges on the plane and avoids
-    creating 'folds' (when e.Onext appears CW of e, instead of CCW)."""
+    """Combines distinct edge rings / breaks the same ring in two pieces. Merging / tearing goes
+    between a and a.onext through a.org to between b and b.onext."""
 
     if a == b:
         print("Splicing edge with itself, ignored: {}.".format(a))
         return
 
-    if not p_coinside(a.org, b.org):
-        print("Can't splice edges with distinct origins: {}, {}.".format(a, b))
-        return
-
-    # IF a and b are not in the same ring -- choose the appropriate edges and check for folds
-    if not e_same_ring(a, b):
-        a = e_first_cw(b, a)
-        b = e_first_cw(a, b)
-        if (e_cw_angle(a, b.onext) < e_cw_angle(a, b)) or \
-           (e_cw_angle(b, a.onext) < e_cw_angle(b, a)):
-            print("Can't splice edges with overlapping rings: {}, {}.".format(a, b))
-            return
-
-    # splice
-    a.onext.set_oprev(b)
-    b.onext.set_oprev(a)
-    tmp = a.onext
-    a.set_onext(b.onext)
-    b.set_onext(tmp)
+    a.onext.oprev, b.onext.oprev = b, a
+    a.onext, b.onext = b.onext, a.onext
 
 
 def connect(a, b):
     """Adds a new edge e connecting the destination of a to the origin of b, in such a way that
     a Left = e Left = b Left after the connection is complete."""
     e = make_edge(a.dest, b.org)
-    if e is None:
-        return None
-    splice(e, a.dprev.sym)
+    splice(e, a.sym.oprev)
     splice(e.sym, b)
     return e
 
@@ -268,105 +226,5 @@ def delete_edge(e):
     structure to fall apart in two separate components)."""
     splice(e, e.oprev)
     splice(e.sym, e.sym.oprev)
-    global edges
-    if e in edges:
-        edges.remove(e)
-    if e.sym in edges:
-        edges.remove(e.sym)
+    e.data, e.sym.data = True, True
 
-
-def swap(e):
-    """Given an edge e whose left and right faces are triangles, detaches e and connects it
-    to the other two vertices of the quadrilateral thus formed."""
-    a, b = e.oprev, e.sym.oprev
-    splice(e, a); splice(e.sym, b)         # detach
-    e.set_org(a.dest); e.set_dest(b.dest)  # reposition
-    splice(e, a.sym.oprev); splice(e.sym, b.sym.oprev)  # attach
-
-
-# -----------------------------------------------------------------
-# Auxiliary methods
-
-
-def p_sort(points):
-    """Returns a copy of points sorted by x coordinate, y is a tiebreaker."""
-    p = points.copy()
-    p.view(dtype=[('f0', p.dtype), ('f1', p.dtype)]).sort(order=['f0', 'f1'], axis=0)
-    return p
-
-
-def p_remdup(points):
-    """Remove duplicates."""
-    if len(points) < 2:
-        return points
-    dupes = [i for i in range(1, len(points)) if p_coinside(points[i], points[i-1])]
-    if dupes:
-        return np.delete(points, dupes, 0)
-    return points
-
-
-def p_coinside(p1, p2):
-    """Returns True if p1 has the same coordinates as p2, False otherwise."""
-    return p1[0] == p2[0] and p1[1] == p2[1]
-
-
-def e_exists(org, dest):
-    """Returns True if there already exists an edge with given endpoints (any order)."""
-    for e in edges:
-        if (p_coinside(e.org, org) and p_coinside(e.dest, dest)) or \
-           (p_coinside(e.org, dest) and p_coinside(e.dest, org)):
-            return True
-    return False
-
-
-def e_same_ring(a, b):
-    """Returns True if edges a and b are in the same ring, False otherwise."""
-    e = a.onext
-    while e != a:
-        if e == b:
-            return True
-        e = e.onext
-    return False
-
-
-def e_first_cw(a, b):
-    """Searches ring of b for the first CW edge with respect to a."""
-    e = b
-    e_cand = b
-    CW_ang = e_cw_angle(a, b)
-    while e.onext != b:
-        ang = e_cw_angle(a, e.onext)
-        if  ang < CW_ang:
-            e_cand = e.onext
-            CW_ang = ang
-        e = e.onext
-    return e_cand
-
-
-def e_cw_angle(a, b):
-    return cw_angle(e_angle(a), e_angle(b))
-
-
-def e_angle(e):
-    return angle_to(e.org, e.dest)
-
-
-def angle_to(p0, p1):
-    """Assumes p0 and p1 are points. Returns angle p0 -> p1 in radians."""
-    return math.atan2(p1[1] - p0[1], p1[0] - p0[0])
-
-
-def cw_angle(a0, a1):
-    """Assumes a0, a1 are angles. Returns CW angle a0 -> a1."""
-    if a0 == a1:
-        return 0
-    if a0 < a1:
-        return a1 - a0
-    return math.pi*2 + a1 - a0
-
-
-def ccw_angle(a0, a1):
-    """Assumes a0, a1 are angles. Returns positive CCW angle a0 -> a1."""
-    if a0 == a1: return 0
-    if a1 < a0: return a0 - a1
-    return math.pi*2 + a0 - a1
