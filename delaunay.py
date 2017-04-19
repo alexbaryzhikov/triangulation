@@ -5,7 +5,6 @@ The divide-and-conquer algorithm for computing Delaunay triangulation of a set o
 """
 
 import numpy as np
-import math
 
 edges = [] # container for edges
 
