@@ -33,7 +33,7 @@ class Mesh:
         else:
             self.points = gen_random(G.screen_w, G.screen_h, RND_POINTS)
 
-        self.edges  = delaunay(self.points)
+        self.edges = delaunay(self.points)
         self.draw(G.screen)
 
     def draw(self, screen):
@@ -70,37 +70,36 @@ def draw_cross():
     pygame.draw.line(canvas, CROSS_COLOR, [CROSS_SIZE, 0], [CROSS_SIZE, CROSS_SIZE*2 + 1])
     return canvas
 
-
 def gen_random(w, h, n):
     """Returns an array of randomly generated points.
        w, h     width, height
        n        number of points"""
-    points_x = np.random.randint(0, w, n)
-    points_y = np.random.randint(0, h, n)
-    return np.asarray(list(zip(points_x, points_y)))
+    points_x = np.random.randint(0, w, n, dtype=np.int64)
+    points_y = np.random.randint(0, h, n, dtype=np.int64)
+    return np.asarray(list(zip(points_x, points_y)), dtype=np.float64)
 
 def gen_grid(w, h, n):
     """Returns grid-like array of points.
        w, h     width, height
        n        number of cells along axis"""
-    points_x = np.linspace(50, w-50, n+1, dtype=np.int64)
-    points_y = np.linspace(50, h-50, n+1, dtype=np.int64)
-    return np.asarray(list((i, j) for i in points_x for j in points_y))
+    points_x = np.linspace(50, w-50, n+1, dtype=np.float64)
+    points_y = np.linspace(50, h-50, n+1, dtype=np.float64)
+    return np.asarray(list((i, j) for i in points_x for j in points_y), dtype=np.float64)
 
 def gen_circle(w, h, n):
     """Returns circular array of points. Float coordinates.
        w, h     width, height of the screen
        n        number of points"""
-    rads = np.linspace(0, 2*math.pi, n+1)
+    rads = np.linspace(0, 2*math.pi, n+1, dtype=np.float64)
     cx, cy = w // 2, h // 2
     r = min(cx, cy) - 50
-    return np.asarray(list((cx + r * math.cos(i), cy + r * math.sin(i)) for i in rads)[:-1])
+    return np.asarray(list((cx + r * math.cos(i), cy + r * math.sin(i)) for i in rads)[:-1], dtype=np.float64)
 
 def gen_circle_i(w, h, n):
     """Returns circular array of points. Integer coordinates.
        w, h     width, height of the screen
        n        number of points"""
-    rads = np.linspace(0, 2*math.pi, n+1)
+    rads = np.linspace(0, 2*math.pi, n+1, dtype=np.float64)
     cx, cy = w // 2, h // 2
     r = min(cx, cy) - 50
-    return np.asarray(list((int(cx + r * math.cos(i)), int(cy + r * math.sin(i))) for i in rads)[:-1])
+    return np.asarray(list((int(cx + r * math.cos(i)), int(cy + r * math.sin(i))) for i in rads)[:-1], dtype=np.float64)
