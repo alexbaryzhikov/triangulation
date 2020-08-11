@@ -22,10 +22,7 @@ def delaunay(S):
     
     global edges
     edges = []
-    if type(S) != np.ndarray:
-        S = np.asarray(S)
-    else:
-        S = S.copy()
+    S = np.asarray(S, dtype=np.float64)
     
     # Sort points by x coordinate, y is a tiebreaker.
     S.view(dtype=[('f0', S.dtype), ('f1', S.dtype)]).sort(order=['f0', 'f1'], axis=0)
